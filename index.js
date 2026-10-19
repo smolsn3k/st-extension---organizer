@@ -17,6 +17,8 @@
         s.sort ??= 'default';
         s.filter ??= 'all';
         s.language ??= 'auto';
+        s.tab ??= 'all';
+        s.favorites ??= {};
         s.firstSeen ??= {};
         return s;
     }
@@ -41,6 +43,10 @@
             allCurrent: 'All {0} extensions are already up to date.',
             failedTitle: '{0} failed (see console)',
             auto: 'auto',
+            tabAll: 'All', tabFav: 'Favorites',
+            s_favorites: 'Favorites first',
+            noFavs: 'No favorites yet. Tap the ☆ next to an extension to add it.',
+            starAdd: 'Add to favorites', starRemove: 'Remove from favorites',
             langTitle: 'Language: {0} (click to switch: auto / EN / RU)',
         },
         ru: {
@@ -60,6 +66,10 @@
             allCurrent: 'Все расширения ({0}) уже актуальны.',
             failedTitle: 'Ошибок: {0} (см. консоль)',
             auto: 'авто',
+            tabAll: 'Все', tabFav: 'Избранное',
+            s_favorites: 'Сначала избранные',
+            noFavs: 'Избранного пока нет. Нажмите ☆ рядом с расширением, чтобы добавить.',
+            starAdd: 'В избранное', starRemove: 'Убрать из избранного',
             langTitle: 'Язык: {0} (нажмите для смены: авто / EN / RU)',
         },
     };
@@ -87,6 +97,7 @@
     const text = (b, sel) => b.querySelector(sel)?.textContent.trim() ?? '';
     const idx = b => Number(b.dataset.eoIdx ?? 1e9);
     const seen = b => settings().firstSeen[b.dataset.name] ?? 0;
+    const isFav = b => !!settings().favorites[b.dataset.name];
 
     const byText = (get, dir) => (a, b) => {
         const x = get(a).toLowerCase(), y = get(b).toLowerCase();
@@ -105,6 +116,7 @@
         'newest': (a, b) => seen(b) - seen(a),
         'oldest': (a, b) => seen(a) - seen(b),
         'updates': (a, b) => Number(hasUpdate(b)) - Number(hasUpdate(a)),
+        'favorites': (a, b) => Number(isFav(b)) - Number(isFav(a)),
         'enabled': (a, b) => Number(isEnabled(b)) - Number(isEnabled(a)),
         'disabled': (a, b) => Number(isEnabled(a)) - Number(isEnabled(b)),
     };
@@ -116,9 +128,19 @@
         'updates': hasUpdate,
     };
 
-    // ---- sort + filter + hide ----
+    // ---- sort + filter + tabs + hide ----
+    function refreshStar(b) {
+        const star = b.querySelector('.eo-star');
+        if (!star) return;
+        const fav = isFav(b);
+        star.classList.toggle('eo-fav', fav);
+        star.querySelector('i').className = `fa-star fa-fw ${fav ? 'fa-solid' : 'fa-regular'}`;
+        star.title = t(fav ? 'starRemove' : 'starAdd');
+    }
+
     function apply(root) {
         const st = settings();
+        const favTab = st.tab === 'favorites';
         const q = root.querySelector('.eo-search').value.trim().toLowerCase();
         const blocks = [...root.querySelectorAll('.extension_block')];
         const filterFn = FILTERS[st.filter] ?? FILTERS.all;
@@ -139,30 +161,36 @@
             const current = [...container.querySelectorAll(':scope > .extension_block')];
             if (sorted.some((b, i) => b !== current[i])) sorted.forEach(b => container.appendChild(b));
 
-            // filter
+            // filter: favorites tab ignores "hide built-in" (you starred it on purpose)
             let visible = 0;
             for (const b of list) {
                 const hay = [text(b, '.extension_name'), text(b, '.extension_author'),
                     text(b, '.extension_version'), b.dataset.name].join(' ').toLowerCase();
-                const ok = !(builtIn && st.hideBuiltIn) && (!q || hay.includes(q)) && filterFn(b);
+                const hiddenBuiltIn = builtIn && st.hideBuiltIn && !favTab;
+                const ok = !hiddenBuiltIn && (!favTab || isFav(b)) && (!q || hay.includes(q)) && filterFn(b);
                 b.classList.toggle('eo-hidden', !ok);
                 if (ok) visible++;
+                refreshStar(b);
             }
-            if (builtIn) {
-                // hide the whole "Built-in Extensions" section (heading included)
-                container.classList.toggle('eo-hidden', st.hideBuiltIn || (visible === 0 && list.length > 0));
-            } else {
-                shown += visible;
-            }
-            if (builtIn && !st.hideBuiltIn) shown += visible;
+            // built-in section (heading included) disappears when it has nothing to show
+            if (builtIn) container.classList.toggle('eo-hidden', visible === 0);
+            shown += visible;
         }
 
-        const total = blocks.filter(b => !(st.hideBuiltIn && !isThirdParty(b))).length;
-        root.querySelector('.eo-count').textContent = `${shown} / ${total}`;
-        const label = root.querySelector('.eo-btn-builtin span');
-        label.textContent = st.hideBuiltIn ? t('builtinHidden') : t('builtinShown');
-        root.querySelector('.eo-btn-builtin i').className =
-            `fa-solid ${st.hideBuiltIn ? 'fa-eye-slash' : 'fa-eye'}`;
+        const favCount = blocks.filter(isFav).length;
+        const total = blocks.filter(b => favTab ? isFav(b) : !(st.hideBuiltIn && !isThirdParty(b))).length;
+
+        const bar = root.querySelector('.eo-toolbar');
+        bar.classList.toggle('eo-favtab', favTab);
+        bar.querySelectorAll('.eo-tab').forEach(x => x.classList.toggle('eo-active', x.dataset.tab === st.tab));
+        bar.querySelector('.eo-fav-count').textContent = favCount ? `(${favCount})` : '';
+        const empty = bar.querySelector('.eo-empty');
+        empty.textContent = t('noFavs');
+        empty.classList.toggle('eo-hidden', !(favTab && favCount === 0));
+
+        bar.querySelector('.eo-count').textContent = `${shown} / ${total}`;
+        bar.querySelector('.eo-btn-builtin span').textContent = st.hideBuiltIn ? t('builtinHidden') : t('builtinShown');
+        bar.querySelector('.eo-btn-builtin i').className = `fa-solid ${st.hideBuiltIn ? 'fa-eye-slash' : 'fa-eye'}`;
     }
 
     // ---- working "Update all" / "Update enabled" ----
@@ -270,6 +298,24 @@
         });
         save();
 
+        // star button on every block (core re-creates blocks each time the popup opens)
+        for (const b of blocks) {
+            const star = document.createElement('button');
+            star.className = 'menu_button eo-star';
+            star.innerHTML = '<i class="fa-star fa-fw fa-regular"></i>';
+            (b.querySelector('.extension_actions') ?? b).prepend(star);
+        }
+        root.addEventListener('click', e => {
+            const star = e.target.closest('.eo-star');
+            if (!star) return;
+            const b = star.closest('.extension_block');
+            if (!b?.dataset.name) return;
+            if (st.favorites[b.dataset.name]) delete st.favorites[b.dataset.name];
+            else st.favorites[b.dataset.name] = true;
+            save();
+            apply(root);
+        });
+
         // hide the core toolbar (its update buttons are what's broken)
         const core = root.querySelector('.extensions_toolbar');
         if (core) core.style.display = 'none';
@@ -277,6 +323,11 @@
         const bar = document.createElement('div');
         bar.className = 'eo-toolbar';
         bar.innerHTML = `
+            <div class="eo-row eo-tabs">
+                <button class="menu_button eo-tab" data-tab="all"><span data-i18n="tabAll"></span></button>
+                <button class="menu_button eo-tab" data-tab="favorites"><i class="fa-solid fa-star"></i><span data-i18n="tabFav"></span><span class="eo-fav-count"></span></button>
+            </div>
+            <div class="eo-empty eo-hidden"></div>
             <div class="eo-row">
                 <input type="search" class="text_pole eo-search">
             </div>
@@ -290,6 +341,7 @@
                     <option value="newest" data-i18n="s_newest"></option>
                     <option value="oldest" data-i18n="s_oldest"></option>
                     <option value="updates" data-i18n="s_updates"></option>
+                    <option value="favorites" data-i18n="s_favorites"></option>
                     <option value="enabled" data-i18n="s_enabled"></option>
                     <option value="disabled" data-i18n="s_disabled"></option>
                 </select>
@@ -323,6 +375,11 @@
         $('.eo-btn-update-all').addEventListener('click', () => runUpdates(root, false));
         $('.eo-btn-update-enabled').addEventListener('click', () => runUpdates(root, true));
         $('.eo-btn-reload').addEventListener('click', () => location.reload());
+        bar.querySelectorAll('.eo-tab').forEach(tab => tab.addEventListener('click', () => {
+            st.tab = tab.dataset.tab;
+            save();
+            rerun();
+        }));
         $('.eo-btn-lang').addEventListener('click', () => {
             const order = ['auto', 'en', 'ru'];
             st.language = order[(order.indexOf(st.language) + 1) % order.length];

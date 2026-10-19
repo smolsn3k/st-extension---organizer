@@ -6,8 +6,9 @@ Search, sort, filter and tidy the extension list inside **Manage extensions** (t
 
 ## Features
 
+- **Favorites**: a ☆ button on every extension (built-in and third-party) and a **Favorites** tab next to **All** that shows only your starred ones, with a counter. The tab ignores "hide built-in", since you starred them on purpose.
 - **Search** by name, author, version or folder name.
-- **Sort**: default order, name A→Z / Z→A, author A→Z / Z→A, recently / oldest added, updates available first, enabled first, disabled first.
+- **Sort**: default order, name A→Z / Z→A, author A→Z / Z→A, recently / oldest added, updates available first, favorites first, enabled first, disabled first.
 - **Filter**: all, enabled only, disabled only, updates available.
 - **Hide Built-in Extensions** with one button (the whole section, heading included).
 - **Working update buttons**:
@@ -16,7 +17,7 @@ Search, sort, filter and tidy the extension list inside **Manage extensions** (t
   - Runs 3 at a time with a live counter; rows turn green (updated) or red (failed); a toast summarizes the result.
   - No forced page reload. A **Reload to apply** button appears when something was updated.
 - **Languages**: English and Russian. Follows the SillyTavern UI language automatically. The globe button cycles `auto → EN → RU`.
-- Your sort, filter, built-in and language choices are saved.
+- Your favorites, tab, sort, filter, built-in and language choices are saved.
 
 ## Install
 
@@ -40,7 +41,7 @@ In the core code, "Update all" and "Update enabled" go through a routine that ex
 
 ## Uninstall
 
-Delete the folder. Saved settings live under `extension_organizer` in your settings and are harmless to leave.
+Delete the folder (your favorites are stored in your settings, not in the folder). Saved settings live under `extension_organizer` in your settings and are harmless to leave.
 
 ---
 
@@ -50,8 +51,9 @@ Delete the folder. Saved settings live under `extension_organizer` in your setti
 
 ### Возможности
 
+- **Избранное**: кнопка ☆ у каждого расширения (встроенного и стороннего) и вкладка **«Избранное»** рядом с **«Все»**, где показаны только отмеченные расширения, со счётчиком. Вкладка игнорирует «скрыть встроенные», ведь вы отметили их намеренно.
 - **Поиск** по названию, автору, версии и имени папки.
-- **Сортировка**: по умолчанию, название А→Я / Я→А, автор А→Я / Я→А, недавно / давно добавленные, сначала с обновлениями, сначала включённые, сначала выключенные.
+- **Сортировка**: по умолчанию, название А→Я / Я→А, автор А→Я / Я→А, недавно / давно добавленные, сначала с обновлениями, сначала избранные, сначала включённые, сначала выключенные.
 - **Фильтр**: все, только включённые, только выключенные, есть обновления.
 - **Скрытие Built-in Extensions** одной кнопкой (весь раздел вместе с заголовком).
 - **Рабочие кнопки обновления**:
@@ -60,7 +62,7 @@ Delete the folder. Saved settings live under `extension_organizer` in your setti
   - Обновление идёт по 3 штуки одновременно, со счётчиком; строки подсвечиваются зелёным (обновлено) или красным (ошибка); итог показывается уведомлением.
   - Страница не перезагружается принудительно. После обновления появляется кнопка **«Перезагрузить для применения»**.
 - **Языки**: английский и русский. Язык берётся из настроек интерфейса SillyTavern автоматически. Кнопка с иконкой языка переключает `авто → EN → RU`.
-- Выбранные сортировка, фильтр, скрытие встроенных и язык сохраняются.
+- Избранное, вкладка, сортировка, фильтр, скрытие встроенных и язык сохраняются.
 
 ### Установка
 
