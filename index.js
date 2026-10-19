@@ -16,10 +16,67 @@
         s.hideBuiltIn ??= false;
         s.sort ??= 'default';
         s.filter ??= 'all';
+        s.language ??= 'auto';
         s.firstSeen ??= {};
         return s;
     }
     const save = () => ctx().saveSettingsDebounced();
+
+    // ---- i18n (auto-detects SillyTavern UI language; can be forced via the globe button) ----
+    const I18N = {
+        en: {
+            searchPh: 'Search name, author, version…',
+            s_default: 'Sort: default order',
+            s_name_asc: 'Name A → Z', s_name_desc: 'Name Z → A',
+            s_author_asc: 'Author A → Z', s_author_desc: 'Author Z → A',
+            s_newest: 'Recently added first', s_oldest: 'Oldest added first',
+            s_updates: 'Updates available first',
+            s_enabled: 'Enabled first', s_disabled: 'Disabled first',
+            f_all: 'Show: all', f_enabled: 'Enabled only', f_disabled: 'Disabled only', f_updates: 'Updates available',
+            builtinShown: 'Built-in: shown', builtinHidden: 'Built-in: hidden',
+            updateEnabled: 'Update enabled', updateAll: 'Update all', reload: 'Reload to apply',
+            updating: 'Updating {0}/{1}…',
+            noTargets: 'No extensions to update.',
+            updatedTitle: '{0} updated, {1} already current',
+            allCurrent: 'All {0} extensions are already up to date.',
+            failedTitle: '{0} failed (see console)',
+            auto: 'auto',
+            langTitle: 'Language: {0} (click to switch: auto / EN / RU)',
+        },
+        ru: {
+            searchPh: 'Поиск: название, автор, версия…',
+            s_default: 'Сортировка: по умолчанию',
+            s_name_asc: 'Название А → Я', s_name_desc: 'Название Я → А',
+            s_author_asc: 'Автор А → Я', s_author_desc: 'Автор Я → А',
+            s_newest: 'Сначала недавно добавленные', s_oldest: 'Сначала давно добавленные',
+            s_updates: 'Сначала с обновлениями',
+            s_enabled: 'Сначала включённые', s_disabled: 'Сначала выключенные',
+            f_all: 'Показать: все', f_enabled: 'Только включённые', f_disabled: 'Только выключенные', f_updates: 'Есть обновления',
+            builtinShown: 'Встроенные: показаны', builtinHidden: 'Встроенные: скрыты',
+            updateEnabled: 'Обновить включённые', updateAll: 'Обновить все', reload: 'Перезагрузить для применения',
+            updating: 'Обновление {0}/{1}…',
+            noTargets: 'Нет расширений для обновления.',
+            updatedTitle: 'Обновлено: {0}, уже актуальны: {1}',
+            allCurrent: 'Все расширения ({0}) уже актуальны.',
+            failedTitle: 'Ошибок: {0} (см. консоль)',
+            auto: 'авто',
+            langTitle: 'Язык: {0} (нажмите для смены: авто / EN / RU)',
+        },
+    };
+
+    function currentLang() {
+        const pref = settings().language;
+        if (pref === 'en' || pref === 'ru') return pref;
+        let loc = '';
+        try { loc = ctx().getCurrentLocale?.() ?? ''; } catch { /* ignore */ }
+        loc ||= localStorage.getItem('language') || navigator.language || '';
+        return String(loc).toLowerCase().startsWith('ru') ? 'ru' : 'en';
+    }
+
+    function t(key, ...args) {
+        const str = I18N[currentLang()][key] ?? I18N.en[key] ?? key;
+        return str.replace(/\{(\d+)\}/g, (_, i) => args[i] ?? '');
+    }
 
     // ---- block helpers (read straight from the core DOM) ----
     const toggleOf = b => b.querySelector('.extension_toggle input');
@@ -103,7 +160,7 @@
         const total = blocks.filter(b => !(st.hideBuiltIn && !isThirdParty(b))).length;
         root.querySelector('.eo-count').textContent = `${shown} / ${total}`;
         const label = root.querySelector('.eo-btn-builtin span');
-        label.textContent = st.hideBuiltIn ? 'Built-in: hidden' : 'Built-in: shown';
+        label.textContent = st.hideBuiltIn ? t('builtinHidden') : t('builtinShown');
         root.querySelector('.eo-btn-builtin i').className =
             `fa-solid ${st.hideBuiltIn ? 'fa-eye-slash' : 'fa-eye'}`;
     }
@@ -126,7 +183,7 @@
         const targets = [...root.querySelectorAll('.extension_block')]
             .filter(b => isThirdParty(b) && (!onlyEnabled || isEnabled(b)));
         if (!targets.length) {
-            toastr.info('No extensions to update.');
+            toastr.info(t('noTargets'));
             return;
         }
 
@@ -138,7 +195,7 @@
 
         const result = { updated: [], upToDate: 0, failed: [] };
         let done = 0;
-        const progress = () => { active.querySelector('span').textContent = `Updating ${done}/${targets.length}…`; };
+        const progress = () => { active.querySelector('span').textContent = t('updating', done, targets.length); };
         progress();
 
         const queue = [...targets];
@@ -178,18 +235,28 @@
         if (result.updated.length) {
             root.querySelector('.eo-btn-reload').classList.remove('eo-hidden');
             toastr.success(result.updated.map(n => `• ${n}`).join('\n'),
-                `${result.updated.length} updated, ${result.upToDate} already current`, opts);
+                t('updatedTitle', result.updated.length, result.upToDate), opts);
         } else if (!result.failed.length) {
-            toastr.info(`All ${result.upToDate} extensions are already up to date.`, '', opts);
+            toastr.info(t('allCurrent', result.upToDate), '', opts);
         }
         if (result.failed.length) {
             toastr.error(result.failed.map(n => `• ${n}`).join('\n'),
-                `${result.failed.length} failed (see console)`, { ...opts, timeOut: 12000 });
+                t('failedTitle', result.failed.length), { ...opts, timeOut: 12000 });
         }
         apply(root);
     }
 
     // ---- UI injection ----
+    function translateBar(bar) {
+        bar.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+        bar.querySelector('.eo-search').placeholder = t('searchPh');
+        const lang = settings().language;
+        const btn = bar.querySelector('.eo-btn-lang');
+        const shown = lang === 'auto' ? t('auto') : lang.toUpperCase();
+        btn.querySelector('span').textContent = shown;
+        btn.title = t('langTitle', shown);
+    }
+
     function init(root) {
         root.dataset.eo = '1';
         const st = settings();
@@ -211,38 +278,40 @@
         bar.className = 'eo-toolbar';
         bar.innerHTML = `
             <div class="eo-row">
-                <input type="search" class="text_pole eo-search" placeholder="Search name, author, version…">
+                <input type="search" class="text_pole eo-search">
             </div>
             <div class="eo-row">
-                <select class="text_pole eo-sort" title="Sort">
-                    <option value="default">Sort: default order</option>
-                    <option value="name-asc">Name A → Z</option>
-                    <option value="name-desc">Name Z → A</option>
-                    <option value="author-asc">Author A → Z</option>
-                    <option value="author-desc">Author Z → A</option>
-                    <option value="newest">Recently added first</option>
-                    <option value="oldest">Oldest added first</option>
-                    <option value="updates">Updates available first</option>
-                    <option value="enabled">Enabled first</option>
-                    <option value="disabled">Disabled first</option>
+                <select class="text_pole eo-sort" >
+                    <option value="default" data-i18n="s_default"></option>
+                    <option value="name-asc" data-i18n="s_name_asc"></option>
+                    <option value="name-desc" data-i18n="s_name_desc"></option>
+                    <option value="author-asc" data-i18n="s_author_asc"></option>
+                    <option value="author-desc" data-i18n="s_author_desc"></option>
+                    <option value="newest" data-i18n="s_newest"></option>
+                    <option value="oldest" data-i18n="s_oldest"></option>
+                    <option value="updates" data-i18n="s_updates"></option>
+                    <option value="enabled" data-i18n="s_enabled"></option>
+                    <option value="disabled" data-i18n="s_disabled"></option>
                 </select>
-                <select class="text_pole eo-filter" title="Filter">
-                    <option value="all">Show: all</option>
-                    <option value="enabled">Enabled only</option>
-                    <option value="disabled">Disabled only</option>
-                    <option value="updates">Updates available</option>
+                <select class="text_pole eo-filter" >
+                    <option value="all" data-i18n="f_all"></option>
+                    <option value="enabled" data-i18n="f_enabled"></option>
+                    <option value="disabled" data-i18n="f_disabled"></option>
+                    <option value="updates" data-i18n="f_updates"></option>
                 </select>
             </div>
             <div class="eo-row">
                 <button class="menu_button menu_button_icon eo-btn-builtin"><i class="fa-solid fa-eye"></i><span></span></button>
-                <button class="menu_button menu_button_icon eo-btn-update-enabled"><i class="fa-solid fa-download"></i><span>Update enabled</span></button>
-                <button class="menu_button menu_button_icon eo-btn-update-all"><i class="fa-solid fa-cloud-arrow-down"></i><span>Update all</span></button>
-                <button class="menu_button menu_button_icon eo-btn-reload eo-hidden"><i class="fa-solid fa-rotate"></i><span>Reload to apply</span></button>
+                <button class="menu_button menu_button_icon eo-btn-update-enabled"><i class="fa-solid fa-download"></i><span data-i18n="updateEnabled"></span></button>
+                <button class="menu_button menu_button_icon eo-btn-update-all"><i class="fa-solid fa-cloud-arrow-down"></i><span data-i18n="updateAll"></span></button>
+                <button class="menu_button menu_button_icon eo-btn-reload eo-hidden"><i class="fa-solid fa-rotate"></i><span data-i18n="reload"></span></button>
+                <button class="menu_button menu_button_icon eo-btn-lang"><i class="fa-solid fa-language"></i><span></span></button>
                 <span class="eo-count"></span>
             </div>`;
         root.prepend(bar);
 
         const $ = sel => bar.querySelector(sel);
+        translateBar(bar);
         $('.eo-sort').value = st.sort in SORTS ? st.sort : 'default';
         $('.eo-filter').value = st.filter in FILTERS ? st.filter : 'all';
 
@@ -254,6 +323,13 @@
         $('.eo-btn-update-all').addEventListener('click', () => runUpdates(root, false));
         $('.eo-btn-update-enabled').addEventListener('click', () => runUpdates(root, true));
         $('.eo-btn-reload').addEventListener('click', () => location.reload());
+        $('.eo-btn-lang').addEventListener('click', () => {
+            const order = ['auto', 'en', 'ru'];
+            st.language = order[(order.indexOf(st.language) + 1) % order.length];
+            save();
+            translateBar(bar);
+            rerun();
+        });
 
         // authors / update badges load asynchronously in core, so re-apply when the list changes
         let timer;
