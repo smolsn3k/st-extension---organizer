@@ -36,6 +36,7 @@
             s_enabled: 'Enabled first', s_disabled: 'Disabled first',
             f_all: 'Show: all', f_enabled: 'Enabled only', f_disabled: 'Disabled only', f_updates: 'Updates available',
             builtinShown: 'Built-in: shown', builtinHidden: 'Built-in: hidden',
+            updateFav: 'Update favorites', noFavTargets: 'No favorite third-party extensions to update.',
             updateEnabled: 'Update enabled', updateAll: 'Update all', reload: 'Reload to apply',
             updating: 'Updating {0}/{1}…',
             noTargets: 'No extensions to update.',
@@ -59,6 +60,7 @@
             s_enabled: 'Сначала включённые', s_disabled: 'Сначала выключенные',
             f_all: 'Показать: все', f_enabled: 'Только включённые', f_disabled: 'Только выключенные', f_updates: 'Есть обновления',
             builtinShown: 'Встроенные: показаны', builtinHidden: 'Встроенные: скрыты',
+            updateFav: 'Обновить избранные', noFavTargets: 'Нет избранных сторонних расширений для обновления.',
             updateEnabled: 'Обновить включённые', updateAll: 'Обновить все', reload: 'Перезагрузить для применения',
             updating: 'Обновление {0}/{1}…',
             noTargets: 'Нет расширений для обновления.',
@@ -205,21 +207,21 @@
         return res.json();
     }
 
-    async function runUpdates(root, onlyEnabled) {
+    async function runUpdates(root, mode) {
         if (root.dataset.eoBusy) return;
 
         const targets = [...root.querySelectorAll('.extension_block')]
-            .filter(b => isThirdParty(b) && (!onlyEnabled || isEnabled(b)));
+            .filter(b => isThirdParty(b) && (mode === 'enabled' ? isEnabled(b) : mode === 'favorites' ? isFav(b) : true));
         if (!targets.length) {
-            toastr.info(t('noTargets'));
+            toastr.info(t(mode === 'favorites' ? 'noFavTargets' : 'noTargets'));
             return;
         }
 
         root.dataset.eoBusy = '1';
-        const btns = [...root.querySelectorAll('.eo-btn-update-all, .eo-btn-update-enabled')];
+        const btns = [...root.querySelectorAll('.eo-btn-update-all, .eo-btn-update-enabled, .eo-btn-update-fav')];
         const labels = new Map(btns.map(b => [b, b.querySelector('span').textContent]));
         btns.forEach(b => b.classList.add('disabled'));
-        const active = root.querySelector(onlyEnabled ? '.eo-btn-update-enabled' : '.eo-btn-update-all');
+        const active = root.querySelector({ all: '.eo-btn-update-all', enabled: '.eo-btn-update-enabled', favorites: '.eo-btn-update-fav' }[mode]);
 
         const result = { updated: [], upToDate: 0, failed: [] };
         let done = 0;
@@ -355,6 +357,7 @@
             <div class="eo-row">
                 <button class="menu_button menu_button_icon eo-btn-builtin"><i class="fa-solid fa-eye"></i><span></span></button>
                 <button class="menu_button menu_button_icon eo-btn-update-enabled"><i class="fa-solid fa-download"></i><span data-i18n="updateEnabled"></span></button>
+                <button class="menu_button menu_button_icon eo-btn-update-fav"><i class="fa-solid fa-star"></i><span data-i18n="updateFav"></span></button>
                 <button class="menu_button menu_button_icon eo-btn-update-all"><i class="fa-solid fa-cloud-arrow-down"></i><span data-i18n="updateAll"></span></button>
                 <button class="menu_button menu_button_icon eo-btn-reload eo-hidden"><i class="fa-solid fa-rotate"></i><span data-i18n="reload"></span></button>
                 <button class="menu_button menu_button_icon eo-btn-lang"><i class="fa-solid fa-language"></i><span></span></button>
@@ -372,8 +375,9 @@
         $('.eo-sort').addEventListener('change', e => { st.sort = e.target.value; save(); rerun(); });
         $('.eo-filter').addEventListener('change', e => { st.filter = e.target.value; save(); rerun(); });
         $('.eo-btn-builtin').addEventListener('click', () => { st.hideBuiltIn = !st.hideBuiltIn; save(); rerun(); });
-        $('.eo-btn-update-all').addEventListener('click', () => runUpdates(root, false));
-        $('.eo-btn-update-enabled').addEventListener('click', () => runUpdates(root, true));
+        $('.eo-btn-update-all').addEventListener('click', () => runUpdates(root, 'all'));
+        $('.eo-btn-update-enabled').addEventListener('click', () => runUpdates(root, 'enabled'));
+        $('.eo-btn-update-fav').addEventListener('click', () => runUpdates(root, 'favorites'));
         $('.eo-btn-reload').addEventListener('click', () => location.reload());
         bar.querySelectorAll('.eo-tab').forEach(tab => tab.addEventListener('click', () => {
             st.tab = tab.dataset.tab;

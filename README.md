@@ -13,6 +13,7 @@ Search, sort, filter and tidy the extension list inside **Manage extensions** (t
 - **Hide Built-in Extensions** with one button (the whole section, heading included).
 - **Working update buttons**:
   - *Update enabled* updates every enabled third-party extension.
+  - *Update favorites* updates only your starred third-party extensions (built-in ones update with SillyTavern itself).
   - *Update all* updates every third-party extension, enabled or not.
   - Runs 3 at a time with a live counter; rows turn green (updated) or red (failed); a toast summarizes the result.
   - No forced page reload. A **Reload to apply** button appears when something was updated.
@@ -58,6 +59,7 @@ Delete the folder (your favorites are stored in your settings, not in the folder
 - **Скрытие Built-in Extensions** одной кнопкой (весь раздел вместе с заголовком).
 - **Рабочие кнопки обновления**:
   - *Обновить включённые* обновляет все включённые сторонние расширения.
+  - *Обновить избранные* обновляет только отмеченные сторонние расширения (встроенные обновляются вместе с SillyTavern).
   - *Обновить все* обновляет все сторонние расширения, включённые или нет.
   - Обновление идёт по 3 штуки одновременно, со счётчиком; строки подсвечиваются зелёным (обновлено) или красным (ошибка); итог показывается уведомлением.
   - Страница не перезагружается принудительно. После обновления появляется кнопка **«Перезагрузить для применения»**.

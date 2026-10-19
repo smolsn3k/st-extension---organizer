@@ -16,3 +16,4 @@
 .eo-star { margin: 0; }
 .eo-star i { opacity: .6; }
 .eo-star.eo-fav i { color: #f5c518; opacity: 1; }
+.eo-btn-update-fav .fa-star { color: #f5c518; }
