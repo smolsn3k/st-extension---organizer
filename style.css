@@ -1,0 +1,9 @@
+.eo-toolbar { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.eo-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.eo-row .text_pole { margin: 0; width: auto; min-width: 0; flex: 1 1 140px; }
+.eo-row .menu_button { margin: 0; flex: 0 0 auto; }
+.eo-count { margin-left: auto; opacity: .6; font-size: .85em; }
+.eo-hidden { display: none !important; }
+.extension_block.eo-updating { opacity: .55; }
+.extension_block.eo-updated { box-shadow: inset 3px 0 0 #4caf50; }
+.extension_block.eo-failed { box-shadow: inset 3px 0 0 #e5534b; }
