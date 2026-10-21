@@ -17,6 +17,7 @@ Search, sort, filter and tidy the extension list inside **Manage extensions** (t
   - *Update all* updates every third-party extension, enabled or not.
   - Runs 3 at a time with a live counter; rows turn green (updated) or red (failed); a toast summarizes the result.
   - No forced page reload. A **Reload to apply** button appears when something was updated.
+- **Bulk delete**: press **Select** to show checkboxes on third-party extensions, tick the ones you want (or **Select all shown**, which respects the current search / filter / tab), then **Delete selected (n)**. A confirmation lists every extension first. Rows hidden by search or filters are never deleted.
 - **Languages**: English and Russian. Follows the SillyTavern UI language automatically. The globe button cycles `auto → EN → RU`.
 - Your favorites, tab, sort, filter, built-in and language choices are saved.
 
@@ -37,7 +38,7 @@ In the core code, "Update all" and "Update enabled" go through a routine that ex
 
 - SillyTavern doesn't expose install/update dates. **Recently / oldest added** uses the time this extension *first saw* each extension in the popup. Extensions you already had all share the first-run timestamp; only extensions added afterwards sort accurately.
 - Author names and update badges load asynchronously, so author / "updates available" sorting may reorder the list for a moment after the popup opens.
-- Extensions that run custom code on update won't run it when updated through this button.
+- Extensions that run custom code on update or on delete (cleanup hooks) won't run it when handled through these buttons. Core's single-extension delete button still offers "also clean up data" for extensions that support it.
 - It works by reading the popup's DOM, so a big UI refactor in SillyTavern could break it. Open an issue with your ST version if that happens.
 
 ## Uninstall
@@ -63,6 +64,7 @@ Delete the folder (your favorites are stored in your settings, not in the folder
   - *Обновить все* обновляет все сторонние расширения, включённые или нет.
   - Обновление идёт по 3 штуки одновременно, со счётчиком; строки подсвечиваются зелёным (обновлено) или красным (ошибка); итог показывается уведомлением.
   - Страница не перезагружается принудительно. После обновления появляется кнопка **«Перезагрузить для применения»**.
+- **Массовое удаление**: кнопка **«Выбрать»** показывает флажки у сторонних расширений; отметьте нужные (или **«Выбрать все показанные»**, с учётом поиска, фильтра и вкладки) и нажмите **«Удалить выбранные (n)»**. Перед удалением показывается список для подтверждения. Скрытые поиском или фильтрами строки никогда не удаляются.
 - **Языки**: английский и русский. Язык берётся из настроек интерфейса SillyTavern автоматически. Кнопка с иконкой языка переключает `авто → EN → RU`.
 - Избранное, вкладка, сортировка, фильтр, скрытие встроенных и язык сохраняются.
 
@@ -83,7 +85,7 @@ Delete the folder (your favorites are stored in your settings, not in the folder
 
 - SillyTavern не отдаёт даты установки и обновления. **«Недавно / давно добавленные»** опирается на момент, когда это расширение *впервые увидело* расширение в окне. У тех, что были у вас раньше, время одинаковое (первый запуск); точно сортируются только добавленные позже.
 - Авторы и значки обновлений подгружаются асинхронно, поэтому сортировка по автору или по наличию обновлений может на мгновение переставить список после открытия окна.
-- Расширения с собственным кодом на событие обновления не выполнят его при обновлении через эту кнопку.
+- Расширения с собственным кодом на событие обновления или удаления (очистка данных) не выполнят его при действиях через эти кнопки. Встроенная кнопка удаления одного расширения по-прежнему предлагает «очистить данные», если расширение это поддерживает.
 - Расширение читает DOM окна, поэтому крупная переработка интерфейса SillyTavern может его сломать. В таком случае сообщите версию ST.
 
 ### Удаление

@@ -17,3 +17,7 @@
 .eo-star i { opacity: .6; }
 .eo-star.eo-fav i { color: #f5c518; opacity: 1; }
 .eo-btn-update-fav .fa-star { color: #f5c518; }
+.eo-select { display: none; margin: 0 8px 0 0; width: 1.3em; height: 1.3em; flex: 0 0 auto; align-self: center; }
+.eo-selecting .eo-select { display: inline-block; }
+.extension_block.eo-selected { box-shadow: inset 3px 0 0 var(--SmartThemeQuoteColor, #888); }
+.eo-btn-delete { color: #e5534b; }

@@ -36,6 +36,12 @@
             s_enabled: 'Enabled first', s_disabled: 'Disabled first',
             f_all: 'Show: all', f_enabled: 'Enabled only', f_disabled: 'Disabled only', f_updates: 'Updates available',
             builtinShown: 'Built-in: shown', builtinHidden: 'Built-in: hidden',
+            select: 'Select', selectDone: 'Done', selectAll: 'Select all shown', clearSel: 'Clear',
+            deleteSel: 'Delete selected ({0})', deleting: 'Deleting {0}/{1}…',
+            confirmTitle: 'Delete {0} extensions?',
+            confirmBody: 'Their folders will be permanently removed. This cannot be undone.',
+            confirmSelf: 'The list includes Extension Organizer itself.',
+            deletedTitle: '{0} deleted', deleteFailedTitle: '{0} failed to delete (see console)',
             updateFav: 'Update favorites', noFavTargets: 'No favorite third-party extensions to update.',
             updateEnabled: 'Update enabled', updateAll: 'Update all', reload: 'Reload to apply',
             updating: 'Updating {0}/{1}…',
@@ -60,6 +66,12 @@
             s_enabled: 'Сначала включённые', s_disabled: 'Сначала выключенные',
             f_all: 'Показать: все', f_enabled: 'Только включённые', f_disabled: 'Только выключенные', f_updates: 'Есть обновления',
             builtinShown: 'Встроенные: показаны', builtinHidden: 'Встроенные: скрыты',
+            select: 'Выбрать', selectDone: 'Готово', selectAll: 'Выбрать все показанные', clearSel: 'Сбросить',
+            deleteSel: 'Удалить выбранные ({0})', deleting: 'Удаление {0}/{1}…',
+            confirmTitle: 'Удалить расширения: {0}?',
+            confirmBody: 'Их папки будут удалены безвозвратно. Это нельзя отменить.',
+            confirmSelf: 'В списке есть само расширение Extension Organizer.',
+            deletedTitle: 'Удалено: {0}', deleteFailedTitle: 'Не удалось удалить: {0} (см. консоль)',
             updateFav: 'Обновить избранные', noFavTargets: 'Нет избранных сторонних расширений для обновления.',
             updateEnabled: 'Обновить включённые', updateAll: 'Обновить все', reload: 'Перезагрузить для применения',
             updating: 'Обновление {0}/{1}…',
@@ -179,6 +191,17 @@
             shown += visible;
         }
 
+        // selection state (only third-party blocks have a checkbox; hidden rows are deselected)
+        const sel = root._eoSel ??= new Set();
+        const selecting = root.classList.contains('eo-selecting');
+        for (const b of blocks) {
+            const cb = b.querySelector('.eo-select');
+            if (!cb) continue;
+            if (b.classList.contains('eo-hidden')) sel.delete(b.dataset.name);
+            cb.checked = sel.has(b.dataset.name);
+            b.classList.toggle('eo-selected', cb.checked);
+        }
+
         const favCount = blocks.filter(isFav).length;
         const total = blocks.filter(b => favTab ? isFav(b) : !(st.hideBuiltIn && !isThirdParty(b))).length;
 
@@ -189,6 +212,14 @@
         const empty = bar.querySelector('.eo-empty');
         empty.textContent = t('noFavs');
         empty.classList.toggle('eo-hidden', !(favTab && favCount === 0));
+
+        bar.querySelector('.eo-selrow').classList.toggle('eo-hidden', !selecting);
+        bar.querySelector('.eo-btn-select span').textContent = t(selecting ? 'selectDone' : 'select');
+        if (!root.dataset.eoBusy) {
+            const del = bar.querySelector('.eo-btn-delete');
+            del.querySelector('span').textContent = t('deleteSel', sel.size);
+            del.classList.toggle('disabled', sel.size === 0);
+        }
 
         bar.querySelector('.eo-count').textContent = `${shown} / ${total}`;
         bar.querySelector('.eo-btn-builtin span').textContent = st.hideBuiltIn ? t('builtinHidden') : t('builtinShown');
@@ -276,6 +307,78 @@
         apply(root);
     }
 
+    // ---- bulk delete ----
+    const isSelf = b => /extension-organizer/i.test(b.dataset.name ?? '');
+    const escHtml = str => { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; };
+
+    async function deleteSelected(root) {
+        if (root.dataset.eoBusy) return;
+        const sel = root._eoSel ??= new Set();
+        const targets = [...root.querySelectorAll('.extension_block')]
+            .filter(b => sel.has(b.dataset.name) && isThirdParty(b) && !b.classList.contains('eo-hidden'));
+        if (!targets.length) return;
+
+        const names = targets.map(b => text(b, '.extension_name') || b.dataset.name);
+        const html = `<h3>${escHtml(t('confirmTitle', targets.length))}</h3>`
+            + `<div style="text-align:left;max-height:40vh;overflow:auto">${names.map(n => '• ' + escHtml(n)).join('<br>')}</div>`
+            + `<p>${escHtml(t('confirmBody'))}${targets.some(isSelf) ? `<br><b>${escHtml(t('confirmSelf'))}</b>` : ''}</p>`;
+        const c = ctx();
+        const confirmed = c.callGenericPopup
+            ? !!(await c.callGenericPopup(html, c.POPUP_TYPE?.CONFIRM ?? 2))
+            : window.confirm(names.join('\n'));
+        if (!confirmed) return;
+
+        root.dataset.eoBusy = '1';
+        const bar = root.querySelector('.eo-toolbar');
+        const lockable = [...bar.querySelectorAll('.eo-btn-update-all, .eo-btn-update-enabled, .eo-btn-update-fav, .eo-btn-delete')];
+        lockable.forEach(b => b.classList.add('disabled'));
+        const delLabel = bar.querySelector('.eo-btn-delete span');
+
+        const st = settings();
+        const result = { deleted: [], failed: [] };
+        let done = 0;
+        for (const b of targets) {
+            const name = text(b, '.extension_name') || b.dataset.name;
+            delLabel.textContent = t('deleting', done + 1, targets.length);
+            b.classList.add('eo-updating');
+            try {
+                const res = await fetch('/api/extensions/delete', {
+                    method: 'POST',
+                    signal: AbortSignal.timeout(UPDATE_TIMEOUT_MS),
+                    headers: ctx().getRequestHeaders(),
+                    body: JSON.stringify({ extensionName: b.dataset.name, global: isGlobal(b) }),
+                });
+                if (!res.ok) throw new Error((await res.text()) || res.statusText);
+                result.deleted.push(name);
+                sel.delete(b.dataset.name);
+                delete st.favorites[b.dataset.name];
+                delete st.firstSeen[b.dataset.name];
+                b.remove();
+            } catch (err) {
+                console.error(`[Extension Organizer] Delete failed for ${name}`, err);
+                result.failed.push(name);
+                b.classList.remove('eo-updating');
+                b.classList.add('eo-failed');
+            }
+            done++;
+        }
+
+        save();
+        try { await ctx().saveSettings?.(); } catch { /* not critical */ }
+        delete root.dataset.eoBusy;
+        lockable.forEach(b => b.classList.remove('disabled'));
+
+        const opts = { escapeHtml: true, timeOut: 8000 };
+        if (result.deleted.length) {
+            root.querySelector('.eo-btn-reload').classList.remove('eo-hidden');
+            toastr.success(result.deleted.map(n => `• ${n}`).join('\n'), t('deletedTitle', result.deleted.length), opts);
+        }
+        if (result.failed.length) {
+            toastr.error(result.failed.map(n => `• ${n}`).join('\n'), t('deleteFailedTitle', result.failed.length), { ...opts, timeOut: 12000 });
+        }
+        apply(root);
+    }
+
     // ---- UI injection ----
     function translateBar(bar) {
         bar.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
@@ -302,6 +405,12 @@
 
         // star button on every block (core re-creates blocks each time the popup opens)
         for (const b of blocks) {
+            if (isThirdParty(b)) {
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'eo-select';
+                b.prepend(cb);
+            }
             const star = document.createElement('button');
             star.className = 'menu_button eo-star';
             star.innerHTML = '<i class="fa-star fa-fw fa-regular"></i>';
@@ -315,6 +424,15 @@
             if (st.favorites[b.dataset.name]) delete st.favorites[b.dataset.name];
             else st.favorites[b.dataset.name] = true;
             save();
+            apply(root);
+        });
+
+        root.addEventListener('change', e => {
+            if (!e.target.matches('.eo-select')) return;
+            const name = e.target.closest('.extension_block')?.dataset.name;
+            if (!name) return;
+            const sel = root._eoSel ??= new Set();
+            if (e.target.checked) sel.add(name); else sel.delete(name);
             apply(root);
         });
 
@@ -360,8 +478,14 @@
                 <button class="menu_button menu_button_icon eo-btn-update-fav"><i class="fa-solid fa-star"></i><span data-i18n="updateFav"></span></button>
                 <button class="menu_button menu_button_icon eo-btn-update-all"><i class="fa-solid fa-cloud-arrow-down"></i><span data-i18n="updateAll"></span></button>
                 <button class="menu_button menu_button_icon eo-btn-reload eo-hidden"><i class="fa-solid fa-rotate"></i><span data-i18n="reload"></span></button>
+                <button class="menu_button menu_button_icon eo-btn-select"><i class="fa-solid fa-square-check"></i><span></span></button>
                 <button class="menu_button menu_button_icon eo-btn-lang"><i class="fa-solid fa-language"></i><span></span></button>
                 <span class="eo-count"></span>
+            </div>
+            <div class="eo-row eo-selrow eo-hidden">
+                <button class="menu_button menu_button_icon eo-btn-selall"><i class="fa-solid fa-list-check"></i><span data-i18n="selectAll"></span></button>
+                <button class="menu_button menu_button_icon eo-btn-selclear"><i class="fa-solid fa-xmark"></i><span data-i18n="clearSel"></span></button>
+                <button class="menu_button menu_button_icon eo-btn-delete"><i class="fa-solid fa-trash-can"></i><span></span></button>
             </div>`;
         root.prepend(bar);
 
@@ -384,6 +508,20 @@
             save();
             rerun();
         }));
+        $('.eo-btn-select').addEventListener('click', () => {
+            root.classList.toggle('eo-selecting');
+            if (!root.classList.contains('eo-selecting')) root._eoSel?.clear();
+            rerun();
+        });
+        $('.eo-btn-selall').addEventListener('click', () => {
+            const sel = root._eoSel ??= new Set();
+            root.querySelectorAll('.extension_block').forEach(b => {
+                if (b.querySelector('.eo-select') && !b.classList.contains('eo-hidden')) sel.add(b.dataset.name);
+            });
+            rerun();
+        });
+        $('.eo-btn-selclear').addEventListener('click', () => { root._eoSel?.clear(); rerun(); });
+        $('.eo-btn-delete').addEventListener('click', () => deleteSelected(root));
         $('.eo-btn-lang').addEventListener('click', () => {
             const order = ['auto', 'en', 'ru'];
             st.language = order[(order.indexOf(st.language) + 1) % order.length];
