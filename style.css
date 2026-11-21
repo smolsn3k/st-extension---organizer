@@ -17,7 +17,77 @@
 .eo-star i { opacity: .6; }
 .eo-star.eo-fav i { color: #f5c518; opacity: 1; }
 .eo-btn-update-fav .fa-star { color: #f5c518; }
-.eo-select { display: none; margin: 0 8px 0 0; width: 1.3em; height: 1.3em; flex: 0 0 auto; align-self: center; }
-.eo-selecting .eo-select { display: inline-block; }
-.extension_block.eo-selected { box-shadow: inset 3px 0 0 var(--SmartThemeQuoteColor, #888); }
 .eo-btn-delete { color: #e5534b; }
+
+/* ---- selection checkbox: square + accent colour, clearly different from the enable/disable toggle ---- */
+.eo-select { display: none; }
+.eo-selecting .eo-select { display: inline-block; }
+.eo-select, .eo-fm {
+    -webkit-appearance: none !important; appearance: none !important;
+    position: relative; flex: 0 0 auto; align-self: center; cursor: pointer;
+    width: 1.5em !important; height: 1.5em !important; margin: 0 8px 0 0 !important; padding: 0;
+    border: 2px solid var(--SmartThemeQuoteColor, #9a8aa0) !important; border-radius: 5px !important;
+    background: transparent !important; box-shadow: none !important;
+}
+.eo-select::before, .eo-fm::before { content: none !important; }
+.eo-select:checked, .eo-fm:checked { background: var(--SmartThemeQuoteColor, #9a8aa0) !important; }
+.eo-select:checked::after, .eo-fm:checked::after {
+    content: '\2714' !important; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #111; font-size: .95em; line-height: 1; transform: none !important; border: 0 !important; background: none !important;
+}
+.eo-selecting .extension_block.eo-selected {
+    background: color-mix(in srgb, var(--SmartThemeQuoteColor, #9a8aa0) 22%, transparent);
+    box-shadow: inset 4px 0 0 var(--SmartThemeQuoteColor, #9a8aa0);
+}
+
+/* ---- enable/disable: small switch instead of a round checkbox ---- */
+.extensions_info[data-eo] .extension_toggle input[type="checkbox"] {
+    -webkit-appearance: none !important; appearance: none !important;
+    position: relative; display: inline-block; flex: 0 0 auto; cursor: pointer;
+    width: 2.3em !important; height: 1.25em !important; margin: 0 6px 0 0 !important; padding: 0;
+    border-radius: 1em !important; border: 1px solid rgba(255, 255, 255, .25) !important;
+    background: rgba(128, 128, 128, .4) !important; box-shadow: none !important; transition: background .15s;
+}
+.extensions_info[data-eo] .extension_toggle input[type="checkbox"]::before { content: none !important; }
+.extensions_info[data-eo] .extension_toggle input[type="checkbox"]::after {
+    content: '' !important; position: absolute; top: 50%; left: .15em; width: .85em; height: .85em;
+    border-radius: 50%; background: #eee !important; border: 0 !important; transform: translateY(-50%) !important; transition: left .15s;
+}
+.extensions_info[data-eo] .extension_toggle input[type="checkbox"]:checked { background: #3fb950 !important; }
+.extensions_info[data-eo] .extension_toggle input[type="checkbox"]:checked::after { left: calc(100% - 1.0em); }
+
+/* ---- folders ---- */
+.eo-collapsed { display: none !important; }
+.eo-folder { margin: 6px 0 2px; }
+.eo-folder-head {
+    display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer;
+    border-radius: 8px; background: rgba(128, 128, 128, .16);
+    box-shadow: inset 3px 0 0 var(--SmartThemeQuoteColor, #9a8aa0);
+}
+.eo-fico { color: var(--SmartThemeQuoteColor, #c9a227); }
+.eo-fname { flex: 1 1 auto; min-width: 0; font-weight: bold; overflow-wrap: anywhere; }
+.eo-fcount { opacity: .6; font-size: .85em; }
+.eo-fedit { margin: 0; flex: 0 0 auto; }
+.eo-fpanel { margin: 4px 0 6px; padding: 10px; border-radius: 8px; background: rgba(128, 128, 128, .1); }
+.eo-fpanel .text_pole { width: 100%; margin: 2px 0 8px; box-sizing: border-box; }
+.eo-flabel { opacity: .7; font-size: .85em; margin-top: 4px; }
+.eo-fmembers { max-height: 40vh; overflow: auto; margin: 4px 0 8px; }
+.eo-frow { display: flex; align-items: flex-start; gap: 4px; padding: 5px 0; cursor: pointer; }
+.eo-frow .eo-fm { margin-top: 1px !important; }
+.eo-frow span { min-width: 0; overflow-wrap: anywhere; }
+.eo-frow small { opacity: .55; }
+.eo-move { flex: 1 1 160px; }
+
+/* ---- phones: names get their own wrapped line, buttons drop to a second line ---- */
+@media (max-width: 800px) {
+    .extensions_info[data-eo] .extension_block { display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; }
+    .extensions_info[data-eo] .extension_block > * { flex: 0 0 auto; }
+    .extensions_info[data-eo] .extension_block > .eo-c-name { flex: 1 1 0; min-width: 0; }
+    .extensions_info[data-eo] .eo-c-name, .extensions_info[data-eo] .eo-c-name * {
+        white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
+        max-width: none !important; overflow-wrap: anywhere;
+    }
+    .extensions_info[data-eo] .extension_block > .eo-c-actions {
+        flex: 1 0 100%; order: 10; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px;
+    }
+}

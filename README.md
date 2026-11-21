@@ -18,6 +18,8 @@ Search, sort, filter and tidy the extension list inside **Manage extensions** (t
   - Runs 3 at a time with a live counter; rows turn green (updated) or red (failed); a toast summarizes the result.
   - No forced page reload. A **Reload to apply** button appears when something was updated.
 - **Bulk delete**: press **Select** to show checkboxes on third-party extensions, tick the ones you want (or **Select all shown**, which respects the current search / filter / tab), then **Delete selected (n)**. A confirmation lists every extension first. Rows hidden by search or filters are never deleted.
+- **Folders**: **New folder** creates one; tap a folder to open/collapse it, tap ✎ to rename it, tick which extensions belong to it, or delete it (extensions are kept). In **Select** mode, **Move selected to…** files many at once. Search also matches folder names. Third-party extensions only.
+- **Phone layout**: the full extension name wraps on its own line and the buttons sit underneath. The selection checkbox is a coloured square and the enable/disable control is a switch, so the two no longer look alike.
 - **Languages**: English and Russian. Follows the SillyTavern UI language automatically. The globe button cycles `auto → EN → RU`.
 - Your favorites, tab, sort, filter, built-in and language choices are saved.
 
@@ -65,6 +67,8 @@ Delete the folder (your favorites are stored in your settings, not in the folder
   - Обновление идёт по 3 штуки одновременно, со счётчиком; строки подсвечиваются зелёным (обновлено) или красным (ошибка); итог показывается уведомлением.
   - Страница не перезагружается принудительно. После обновления появляется кнопка **«Перезагрузить для применения»**.
 - **Массовое удаление**: кнопка **«Выбрать»** показывает флажки у сторонних расширений; отметьте нужные (или **«Выбрать все показанные»**, с учётом поиска, фильтра и вкладки) и нажмите **«Удалить выбранные (n)»**. Перед удалением показывается список для подтверждения. Скрытые поиском или фильтрами строки никогда не удаляются.
+- **Папки**: **«Новая папка»** создаёт папку; нажмите на папку, чтобы раскрыть/свернуть, на ✎ — чтобы переименовать, выбрать расширения или удалить папку (расширения остаются). В режиме **«Выбрать»** пункт **«Переместить выбранные в…»** раскладывает сразу много. Поиск находит и названия папок. Только для сторонних расширений.
+- **Телефон**: полное название расширения переносится на своей строке, кнопки — под ним. Флажок выбора — цветной квадрат, а включение/выключение — переключатель, так что они больше не похожи.
 - **Языки**: английский и русский. Язык берётся из настроек интерфейса SillyTavern автоматически. Кнопка с иконкой языка переключает `авто → EN → RU`.
 - Избранное, вкладка, сортировка, фильтр, скрытие встроенных и язык сохраняются.
 

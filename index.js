@@ -20,6 +20,8 @@
         s.tab ??= 'all';
         s.favorites ??= {};
         s.firstSeen ??= {};
+        s.folders ??= [];   // [{ id, name, open }]
+        s.folderOf ??= {};  // extension folder name -> folder id
         return s;
     }
     const save = () => ctx().saveSettingsDebounced();
@@ -55,6 +57,12 @@
             noFavs: 'No favorites yet. Tap the ☆ next to an extension to add it.',
             starAdd: 'Add to favorites', starRemove: 'Remove from favorites',
             langTitle: 'Language: {0} (click to switch: auto / EN / RU)',
+            newFolder: 'New folder', folderNamePrompt: 'Folder name', folderDefault: 'New folder',
+            moveTo: 'Move selected to…', noFolder: '— No folder —', newFolderOpt: '+ New folder…',
+            selectFirst: 'Select some extensions first.',
+            editFolder: 'Edit folder', folderName: 'Folder name', folderMembers: 'Extensions in this folder',
+            inFolder: '(in {0})', save: 'Save', cancel: 'Cancel', deleteFolder: 'Delete folder',
+            deleteFolderConfirm: 'Delete folder "{0}"? Its extensions are kept and just become unfiled.',
         },
         ru: {
             searchPh: 'Поиск: название, автор, версия…',
@@ -85,6 +93,12 @@
             noFavs: 'Избранного пока нет. Нажмите ☆ рядом с расширением, чтобы добавить.',
             starAdd: 'В избранное', starRemove: 'Убрать из избранного',
             langTitle: 'Язык: {0} (нажмите для смены: авто / EN / RU)',
+            newFolder: 'Новая папка', folderNamePrompt: 'Название папки', folderDefault: 'Новая папка',
+            moveTo: 'Переместить выбранные в…', noFolder: '— Без папки —', newFolderOpt: '+ Новая папка…',
+            selectFirst: 'Сначала выберите расширения.',
+            editFolder: 'Изменить папку', folderName: 'Название папки', folderMembers: 'Расширения в папке',
+            inFolder: '(в «{0}»)', save: 'Сохранить', cancel: 'Отмена', deleteFolder: 'Удалить папку',
+            deleteFolderConfirm: 'Удалить папку «{0}»? Расширения останутся, просто будут без папки.',
         },
     };
 
@@ -112,6 +126,11 @@
     const idx = b => Number(b.dataset.eoIdx ?? 1e9);
     const seen = b => settings().firstSeen[b.dataset.name] ?? 0;
     const isFav = b => !!settings().favorites[b.dataset.name];
+
+    const folderById = id => settings().folders.find(f => f.id === id);
+    const folderIdOf = b => { const id = settings().folderOf[b.dataset.name]; return folderById(id) ? id : null; };
+    const extName = b => text(b, '.extension_name') || b.dataset.name;
+    const escAttr = str => escHtml(str).replace(/"/g, '&quot;');
 
     const byText = (get, dir) => (a, b) => {
         const x = get(a).toLowerCase(), y = get(b).toLowerCase();
@@ -152,6 +171,138 @@
         star.title = t(fav ? 'starRemove' : 'starAdd');
     }
 
+    // ---- folders ----
+    function buildFolderEl(f) {
+        const el = document.createElement('div');
+        el.className = 'eo-folder';
+        el.dataset.fid = f.id;
+        el.innerHTML = `<div class="eo-folder-head">
+                <i class="fa-solid fa-fw eo-fcaret"></i><i class="fa-solid fa-fw eo-fico"></i>
+                <span class="eo-fname"></span><span class="eo-fcount"></span>
+                <button type="button" class="menu_button eo-fedit"><i class="fa-solid fa-pen"></i></button>
+            </div><div class="eo-fpanel eo-hidden"></div>`;
+        el.querySelector('.eo-fedit').title = t('editFolder');
+        return el;
+    }
+
+    // folders first (in your order), each followed by its extensions; unfiled extensions last
+    function folderLayout(root, sorted) {
+        const st = settings();
+        const els = root._eoFolders ??= new Map();
+        const out = [];
+        const used = new Set();
+        for (const f of st.folders) {
+            let el = els.get(f.id);
+            if (!el) { el = buildFolderEl(f); els.set(f.id, el); }
+            out.push(el);
+            for (const b of sorted) if (folderIdOf(b) === f.id) { out.push(b); used.add(b); }
+        }
+        for (const b of sorted) if (!used.has(b)) out.push(b);
+        for (const [id, el] of els) if (!folderById(id)) { el.remove(); els.delete(id); }
+        return out;
+    }
+
+    function updateFolderEl(el, f, vis, total, collapsed) {
+        el.querySelector('.eo-fname').textContent = f.name;
+        el.querySelector('.eo-fcount').textContent = vis === total ? `${total}` : `${vis}/${total}`;
+        el.querySelector('.eo-fcaret').className = `fa-solid fa-fw eo-fcaret ${collapsed ? 'fa-chevron-right' : 'fa-chevron-down'}`;
+        el.querySelector('.eo-fico').className = `fa-solid fa-fw eo-fico ${collapsed ? 'fa-folder' : 'fa-folder-open'}`;
+    }
+
+    async function promptName(def) {
+        const c = ctx();
+        let v;
+        try {
+            v = c.callGenericPopup
+                ? await c.callGenericPopup(escHtml(t('folderNamePrompt')), c.POPUP_TYPE?.INPUT ?? 3, def)
+                : window.prompt(t('folderNamePrompt'), def);
+        } catch { v = null; }
+        return typeof v === 'string' ? v.trim() : '';
+    }
+
+    async function createFolder(name) {
+        name ??= await promptName(t('folderDefault'));
+        if (!name) return null;
+        const f = { id: 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, open: true };
+        settings().folders.push(f);
+        save();
+        return f;
+    }
+
+    function closePanel(fol) {
+        const panel = fol.querySelector('.eo-fpanel');
+        panel.classList.add('eo-hidden');
+        panel.innerHTML = '';
+    }
+
+    function togglePanel(root, fol, f) {
+        const panel = fol.querySelector('.eo-fpanel');
+        if (!panel.classList.contains('eo-hidden')) return closePanel(fol);
+        const st = settings();
+        const blocks = [...root.querySelectorAll('.extension_block')].filter(isThirdParty)
+            .sort((a, b) => extName(a).toLowerCase().localeCompare(extName(b).toLowerCase()));
+        const rows = blocks.map(b => {
+            const fid = folderIdOf(b);
+            const other = fid && fid !== f.id ? folderById(fid)?.name : '';
+            return `<label class="eo-frow"><input type="checkbox" class="eo-fm" data-name="${escAttr(b.dataset.name)}"${fid === f.id ? ' checked' : ''}>`
+                + `<span>${escHtml(extName(b))}${other ? ` <small>${escHtml(t('inFolder', other))}</small>` : ''}</span></label>`;
+        }).join('');
+        panel.innerHTML = `<div class="eo-flabel">${escHtml(t('folderName'))}</div>
+            <input type="text" class="text_pole eo-fname-input">
+            <div class="eo-flabel">${escHtml(t('folderMembers'))}</div>
+            <div class="eo-fmembers">${rows}</div>
+            <div class="eo-row">
+                <button type="button" class="menu_button menu_button_icon eo-fsave"><i class="fa-solid fa-check"></i><span>${escHtml(t('save'))}</span></button>
+                <button type="button" class="menu_button menu_button_icon eo-fcancel"><i class="fa-solid fa-xmark"></i><span>${escHtml(t('cancel'))}</span></button>
+                <button type="button" class="menu_button menu_button_icon eo-fdelete"><i class="fa-solid fa-trash-can"></i><span>${escHtml(t('deleteFolder'))}</span></button>
+            </div>`;
+        panel.querySelector('.eo-fname-input').value = f.name;
+        panel.classList.remove('eo-hidden');
+        void st;
+    }
+
+    function saveFolderPanel(root, fol, f) {
+        const st = settings();
+        const panel = fol.querySelector('.eo-fpanel');
+        const name = panel.querySelector('.eo-fname-input').value.trim();
+        if (name) f.name = name;
+        panel.querySelectorAll('.eo-fm').forEach(cb => {
+            const n = cb.dataset.name;
+            if (cb.checked) st.folderOf[n] = f.id;
+            else if (st.folderOf[n] === f.id) delete st.folderOf[n];
+        });
+        save();
+        closePanel(fol);
+        apply(root);
+    }
+
+    async function deleteFolder(root, f) {
+        const c = ctx();
+        const msg = escHtml(t('deleteFolderConfirm', f.name));
+        const ok = c.callGenericPopup ? !!(await c.callGenericPopup(msg, c.POPUP_TYPE?.CONFIRM ?? 2)) : window.confirm(t('deleteFolderConfirm', f.name));
+        if (!ok) return;
+        const st = settings();
+        st.folders = st.folders.filter(x => x.id !== f.id);
+        for (const k of Object.keys(st.folderOf)) if (st.folderOf[k] === f.id) delete st.folderOf[k];
+        save();
+        apply(root);
+    }
+
+    function refreshMoveSelect(bar) {
+        const st = settings();
+        const sel = bar.querySelector('.eo-move');
+        const sig = currentLang() + '|' + st.folders.map(f => f.id + ':' + f.name).join('|');
+        if (sel._sig === sig) return;
+        sel._sig = sig;
+        sel.innerHTML = '';
+        const add = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; sel.append(o); };
+        add('', t('moveTo'));
+        st.folders.forEach(f => add(f.id, '📁 ' + f.name));
+        add('__none', t('noFolder'));
+        add('__new', t('newFolderOpt'));
+        sel.value = '';
+    }
+
     function apply(root) {
         const st = settings();
         const favTab = st.tab === 'favorites';
@@ -172,19 +323,35 @@
 
             // sort (only move nodes if the order actually changes)
             const sorted = [...list].sort((a, b) => sortFn(a, b) || idx(a) - idx(b));
-            const current = [...container.querySelectorAll(':scope > .extension_block')];
-            if (sorted.some((b, i) => b !== current[i])) sorted.forEach(b => container.appendChild(b));
+            const ordered = builtIn ? sorted : folderLayout(root, sorted);
+            const current = [...container.querySelectorAll(':scope > .extension_block, :scope > .eo-folder')];
+            if (ordered.length !== current.length || ordered.some((n, i) => n !== current[i])) ordered.forEach(n => container.appendChild(n));
 
             // filter: favorites tab ignores "hide built-in" (you starred it on purpose)
             let visible = 0;
             for (const b of list) {
                 const hay = [text(b, '.extension_name'), text(b, '.extension_author'),
-                    text(b, '.extension_version'), b.dataset.name].join(' ').toLowerCase();
+                    text(b, '.extension_version'), b.dataset.name, folderById(folderIdOf(b))?.name ?? ''].join(' ').toLowerCase();
                 const hiddenBuiltIn = builtIn && st.hideBuiltIn && !favTab;
                 const ok = !hiddenBuiltIn && (!favTab || isFav(b)) && (!q || hay.includes(q)) && filterFn(b);
                 b.classList.toggle('eo-hidden', !ok);
                 if (ok) visible++;
                 refreshStar(b);
+            }
+            // folder headers: collapse state, counts, hide empty ones while searching / filtering
+            if (!builtIn) {
+                const searching = !!q || st.filter !== 'all' || favTab;
+                for (const f of st.folders) {
+                    const el = root._eoFolders?.get(f.id);
+                    if (!el) continue;
+                    const members = list.filter(b => folderIdOf(b) === f.id);
+                    const vis = members.filter(b => !b.classList.contains('eo-hidden')).length;
+                    const collapsed = !f.open && !q;
+                    members.forEach(b => b.classList.toggle('eo-collapsed', collapsed));
+                    el.classList.toggle('eo-hidden', searching && vis === 0);
+                    updateFolderEl(el, f, vis, members.length, collapsed);
+                }
+                list.filter(b => !folderIdOf(b)).forEach(b => b.classList.remove('eo-collapsed'));
             }
             // built-in section (heading included) disappears when it has nothing to show
             if (builtIn) container.classList.toggle('eo-hidden', visible === 0);
@@ -214,6 +381,7 @@
         empty.classList.toggle('eo-hidden', !(favTab && favCount === 0));
 
         bar.querySelector('.eo-selrow').classList.toggle('eo-hidden', !selecting);
+        refreshMoveSelect(bar);
         bar.querySelector('.eo-btn-select span').textContent = t(selecting ? 'selectDone' : 'select');
         if (!root.dataset.eoBusy) {
             const del = bar.querySelector('.eo-btn-delete');
@@ -353,6 +521,7 @@
                 sel.delete(b.dataset.name);
                 delete st.favorites[b.dataset.name];
                 delete st.firstSeen[b.dataset.name];
+                delete st.folderOf[b.dataset.name];
                 b.remove();
             } catch (err) {
                 console.error(`[Extension Organizer] Delete failed for ${name}`, err);
@@ -411,6 +580,13 @@
                 cb.className = 'eo-select';
                 b.prepend(cb);
             }
+            // tag the row's name / actions containers so CSS can give the name its own full-width line on phones
+            const direct = el => { while (el && el.parentElement !== b) el = el.parentElement; return el; };
+            const nameC = direct(b.querySelector('.extension_name'));
+            const actC = direct(b.querySelector('.extension_actions'));
+            if (nameC && !nameC.contains(toggleOf(b)) && !nameC.matches('.extension_actions')) nameC.classList.add('eo-c-name');
+            if (actC && actC !== nameC && !actC.contains(toggleOf(b))) actC.classList.add('eo-c-actions');
+
             const star = document.createElement('button');
             star.className = 'menu_button eo-star';
             star.innerHTML = '<i class="fa-star fa-fw fa-regular"></i>';
@@ -425,6 +601,18 @@
             else st.favorites[b.dataset.name] = true;
             save();
             apply(root);
+        });
+
+        root.addEventListener('click', e => {
+            const fol = e.target.closest('.eo-folder');
+            if (!fol) return;
+            const f = folderById(fol.dataset.fid);
+            if (!f) return;
+            if (e.target.closest('.eo-fsave')) return saveFolderPanel(root, fol, f);
+            if (e.target.closest('.eo-fcancel')) return closePanel(fol);
+            if (e.target.closest('.eo-fdelete')) return deleteFolder(root, f);
+            if (e.target.closest('.eo-fedit')) return togglePanel(root, fol, f);
+            if (e.target.closest('.eo-folder-head')) { f.open = !f.open; save(); apply(root); }
         });
 
         root.addEventListener('change', e => {
@@ -479,12 +667,14 @@
                 <button class="menu_button menu_button_icon eo-btn-update-all"><i class="fa-solid fa-cloud-arrow-down"></i><span data-i18n="updateAll"></span></button>
                 <button class="menu_button menu_button_icon eo-btn-reload eo-hidden"><i class="fa-solid fa-rotate"></i><span data-i18n="reload"></span></button>
                 <button class="menu_button menu_button_icon eo-btn-select"><i class="fa-solid fa-square-check"></i><span></span></button>
+                <button class="menu_button menu_button_icon eo-btn-newfolder"><i class="fa-solid fa-folder-plus"></i><span data-i18n="newFolder"></span></button>
                 <button class="menu_button menu_button_icon eo-btn-lang"><i class="fa-solid fa-language"></i><span></span></button>
                 <span class="eo-count"></span>
             </div>
             <div class="eo-row eo-selrow eo-hidden">
                 <button class="menu_button menu_button_icon eo-btn-selall"><i class="fa-solid fa-list-check"></i><span data-i18n="selectAll"></span></button>
                 <button class="menu_button menu_button_icon eo-btn-selclear"><i class="fa-solid fa-xmark"></i><span data-i18n="clearSel"></span></button>
+                <select class="text_pole eo-move"></select>
                 <button class="menu_button menu_button_icon eo-btn-delete"><i class="fa-solid fa-trash-can"></i><span></span></button>
             </div>`;
         root.prepend(bar);
@@ -516,12 +706,42 @@
         $('.eo-btn-selall').addEventListener('click', () => {
             const sel = root._eoSel ??= new Set();
             root.querySelectorAll('.extension_block').forEach(b => {
-                if (b.querySelector('.eo-select') && !b.classList.contains('eo-hidden')) sel.add(b.dataset.name);
+                if (b.querySelector('.eo-select') && !b.classList.contains('eo-hidden') && !b.classList.contains('eo-collapsed')) sel.add(b.dataset.name);
             });
             rerun();
         });
         $('.eo-btn-selclear').addEventListener('click', () => { root._eoSel?.clear(); rerun(); });
         $('.eo-btn-delete').addEventListener('click', () => deleteSelected(root));
+        $('.eo-btn-newfolder').addEventListener('click', async () => {
+            const f = await createFolder();
+            if (!f) return;
+            apply(root);
+            const el = root._eoFolders?.get(f.id);
+            if (el) { togglePanel(root, el, f); el.scrollIntoView?.({ block: 'nearest' }); }
+        });
+        $('.eo-move').addEventListener('change', async e => {
+            const v = e.target.value;
+            e.target.value = '';
+            const sel = root._eoSel ??= new Set();
+            if (!v) return;
+            if (!sel.size) { toastr.info(t('selectFirst')); return; }
+            const st2 = settings();
+            let target = v;
+            if (v === '__new') {
+                const f = await createFolder();
+                if (!f) return;
+                target = f.id;
+            }
+            for (const name of sel) {
+                if (target === '__none') delete st2.folderOf[name];
+                else st2.folderOf[name] = target;
+            }
+            const tf = folderById(target);
+            if (tf) tf.open = true;
+            save();
+            sel.clear();
+            apply(root);
+        });
         $('.eo-btn-lang').addEventListener('click', () => {
             const order = ['auto', 'en', 'ru'];
             st.language = order[(order.indexOf(st.language) + 1) % order.length];
